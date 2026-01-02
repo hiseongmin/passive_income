@@ -18,34 +18,58 @@
 - High-frequency trading strategies
 - Live deployment (backtest phase first)
 
+## Module Responsibilities
+
+### TDA Signal Module (dev_sa)
+See: `docs/tda_signal.md`
+
+### Market Complexity Module (dev_ye)
+See: `docs/complexity.md`
+
 ## Key References
 
 ### TDA in Financial Markets
-1. **Stock Index Prediction with TDA**  
-   `docs/enhance.pdf`  
+1. **Stock Index Prediction with TDA**
+   `docs/enhance.pdf`
    Focus: Practical applications to equity indices
 
-2. **Time Series Classification via TDA**  
-   `docs/12_228.pdf`  
+2. **Time Series Classification via TDA**
+   `docs/12_228.pdf`
    Focus: Classification methodologies applicable to trading signals
 
-3. **TDA for Chronological Data**  
-   `docs/paper15.pdf`  
+3. **TDA for Chronological Data**
+   `docs/paper15.pdf`
    Focus: Temporal analysis techniques
 
-4. **Extreme Event Detection**  
-   `docs/2405.16052v1.pdf`  
+4. **Extreme Event Detection**
+   `docs/2405.16052v1.pdf`
    Focus: Identifying market crashes/rallies using topology
 
-5. **Financial Time Series Forecasting Enhancement**  
-   `docs/enhance2.pdf`  
+5. **Financial Time Series Forecasting Enhancement**
+   `docs/enhance2.pdf`
    Focus: Improving forecast accuracy with TDA features
 
-## Technical Stack (to be determined)
+## Technical Stack
 - **TDA Libraries**: giotto-tda, ripser, persim
+- **ML Framework**: PyTorch
 - **Data Analysis**: pandas, numpy
 - **Backtesting**: backtrader, vectorbt
 - **Visualization**: matplotlib, plotly
+- **Data Source**: Binance API
+
+## Data Requirements
+- Source: Binance API (BTC/USDT)
+- Timeframe: 1-minute candles
+- Period: 2024.01.11 (BTC ETF launch) ~ present
+
+### Data Split
+| Period | Usage |
+|--------|-------|
+| ETF launch ~ 180 days ago | Training |
+| 180 days ago ~ 90 days ago | Validation |
+| 90 days ago ~ present | Test |
+
+**Critical**: Walk-forward only — no future data leakage
 
 ## Success Metrics
 - Sharpe Ratio > 1.5
@@ -55,12 +79,19 @@
 
 ## Next Steps
 1. Literature review of listed papers
-2. Proof-of-concept: TDA feature extraction on sample Bitcoin data
-3. Baseline strategy implementation
-4. Iterative refinement based on backtest results
+2. Collect 1-minute candle data from Binance
+3. Proof-of-concept: TDA feature extraction on sample Bitcoin data
+4. Implement complexity indicators and validate visually
+5. Baseline strategy implementation
+6. Integrate TDA signals + complexity module
+7. Iterative refinement based on backtest results
 
-# Package Installation
+---
+
+# Development Guidelines
+
+## Package Installation
 Always use uv install
 
-#Python envrionment
+## Python Environment
 Always use conda environment named passive_income
