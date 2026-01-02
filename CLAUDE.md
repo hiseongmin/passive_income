@@ -21,7 +21,7 @@
 ## Module Responsibilities
 
 ### TDA Signal Module (dev_sa)
-See: `docs/tda_signal.md`
+See: `docs/tda_model.md`
 
 ### Market Complexity Module (dev_ye)
 See: `docs/complexity.md`
