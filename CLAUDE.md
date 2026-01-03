@@ -26,6 +26,14 @@ See: `docs/tda_model.md`
 ### Market Complexity Module (dev_ye)
 See: `docs/complexity.md`
 
+**Indicators** (6 factors):
+1. MA Separation (20/50/100/200)
+2. Bollinger Band Width
+3. Price Efficiency
+4. Support Reaction Strength
+5. Directional Result per Time
+6. Volume-Price Alignment
+
 ## Key References
 
 ### TDA in Financial Markets

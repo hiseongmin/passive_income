@@ -4,8 +4,8 @@
 Measures **market complexity** — defined as "how difficult it is to predict the trend."
 
 ## Core Concept
-- **Low complexity (clear trend)**: MAs separated, BB wide, strong support reactions, efficient price movement
-- **High complexity**: MAs tangled, BB narrow, weak reactions, price moves a lot but goes nowhere
+- **Low complexity (clear trend)**: MAs separated, BB wide, strong support reactions, efficient price movement, volume confirms direction
+- **High complexity**: MAs tangled, BB narrow, weak reactions, price moves a lot but goes nowhere, volume diverges from price
 
 ### Clear Trend vs Complex Market
 
@@ -16,6 +16,7 @@ Measures **market complexity** — defined as "how difficult it is to predict th
 | Support Reaction | Strong bounce | Weak, unclear |
 | Time to Result | Fast | Slow, no result |
 | Position Sizing | Time-based OK | Price-based only |
+| Volume | Confirms direction | Diverges or spikes without result |
 
 ## Indicators
 
@@ -44,6 +45,13 @@ Measures **market complexity** — defined as "how difficult it is to predict th
 - Large = low complexity
 - Small despite time = high complexity
 
+### 6. Volume-Price Alignment
+- Measures if volume confirms price movement
+- `correlation(price_change, volume)` over rolling window
+- High positive correlation = volume confirms trend (low complexity)
+- Low/negative correlation = volume diverges from price (high complexity)
+- Additional: Volume spike with clear direction vs volume spike with no result
+
 ## Complexity Score Formula
 
 ```python
@@ -52,9 +60,10 @@ complexity = w1 * (1 - ma_separation_norm)
            + w3 * (1 - price_efficiency)
            + w4 * (1 - support_reaction_norm)
            + w5 * (1 - directional_result_norm)
+           + w6 * (1 - volume_price_alignment_norm)
 ```
 
-Initial weights: equal (0.2 each) → tune after visual validation
+Initial weights: equal (~0.167 each) → tune after visual validation
 
 ## Labeling Strategy
 
