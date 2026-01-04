@@ -1113,3 +1113,253 @@ class FocalLoss(nn.Module):
 | AUC-ROC | 0.526 | > 0.70 |
 
 **Rationale**: In trading, false positives (predicting trigger when none occurs) lead to unnecessary trades and losses. Missing some real triggers is acceptable; acting on false signals is not.
+
+---
+
+## Phase 2: Feature Engineering & Model Scaling (Implemented 2026-01-04)
+
+Based on comprehensive research of 2024-2025 crypto prediction literature, the following major enhancements were implemented.
+
+### Research Findings
+
+#### Top Performing Features for Crypto Prediction
+1. **Volume-based Features**: VPIN, order flow imbalance, CVD - significantly predict price jumps (60%+ predictive power)
+2. **Technical Indicators**: MACD, RSI, Bollinger Bands, ATR - R² values of 0.82+ when properly normalized
+3. **Multi-scale Temporal Features**: Different timeframe features capture short/long patterns
+4. **On-chain Metrics**: MVRV, SOPR, holder distribution (if available)
+
+#### Top Performing Architectures
+1. **Temporal Fusion Transformer (TFT)** - interpretable, multi-horizon, handles heterogeneous features
+2. **Attention-LSTM/GRU Hybrids** - CNN + BiLSTM + Attention outperforms individual models
+3. **Helformer** - Holt-Winters decomposition + Transformer
+4. **Ensemble Methods** - 1640% returns vs 304% (single ML) vs 223% (buy-hold)
+
+#### Class Imbalance Solutions
+1. **Cost-sensitive learning** - 3-9% improvement in F-measure vs cross-entropy
+2. **Anomaly detection framing** - Treat triggers as anomalies, not minority class
+3. **Temporal SMOTE** - Respects time series structure
+
+### Identified Gaps in Original Implementation
+
+| Gap | Problem | Impact |
+|-----|---------|--------|
+| Volume Features | Available but unused | Lost 60%+ predictive signal |
+| Complexity | 6 indicators → 1 scalar | Lost regime/momentum information |
+| Technical Indicators | None implemented | Missing proven predictive features |
+| GPU Utilization | 4 MiB / 48 GB used | Underpowered model |
+
+### Feature Engineering Implementation
+
+#### New Feature Architecture (2.6× increase)
+
+```
+BEFORE (Original):
+├── OHLC sequence: 96 × 4 = 384 values
+├── TDA features: 214 dimensions
+├── Complexity: 1 scalar
+└── Total input: ~600 dimensions
+
+AFTER (Enhanced):
+├── Price sequence: 96 × 4 = 384 values
+├── Volume sequence: 96 × 5 = 480 values (volume, buy, sell, delta, cvd)
+├── Technical indicators: 96 × 5 = 480 values (RSI, MACD, BB%B, ATR, MOM)
+├── TDA features: 214 dimensions
+├── Complexity (expanded): 6 dimensions
+└── Total input: ~1,564 dimensions (2.6× increase)
+```
+
+#### Technical Indicators Added
+
+| Indicator | Period | Normalization | Description |
+|-----------|--------|---------------|-------------|
+| RSI | 14 | [0, 1] | Relative Strength Index |
+| MACD | 12/26/9 | z-score | Moving Average Convergence Divergence |
+| BB %B | 20 | [0, 1] | Bollinger Band position |
+| ATR | 14 | log scale | Average True Range (volatility) |
+| Momentum | 10 | raw | Price momentum |
+
+#### Volume Features
+
+| Feature | Normalization | Description |
+|---------|---------------|-------------|
+| volume | log1p | Trading volume |
+| buy_volume | log1p | Buy-side volume |
+| sell_volume | log1p | Sell-side volume |
+| volume_delta | z-score, clip ±5 | Net buy-sell difference |
+| cvd | z-score, clip ±5 | Cumulative Volume Delta (derivative) |
+
+#### Expanded Complexity (6 dimensions)
+
+| Indicator | Description |
+|-----------|-------------|
+| MA_separation | Trend direction/strength from MA cross |
+| BB_width | Volatility regime indicator |
+| efficiency | Mean reversion signals |
+| support_reaction | Support/Resistance strength |
+| direction | Momentum direction |
+| volume_alignment | Volume-price confirmation |
+
+### Model Scaling Implementation
+
+#### Parameter Changes (50-80× increase)
+
+| Parameter | Before | After | Multiplier |
+|-----------|--------|-------|------------|
+| hidden_size | 128 | 1024 | 8× |
+| batch_size | 256 | 2048 | 8× |
+| epochs | 100 | 500 | 5× |
+| patience | 10 | 30 | 3× |
+| tda_encoder_dim | 64 | 256 | 4× |
+| complexity_encoder_dim | 16 | 64 | 4× |
+| shared_fc_dim | 128 | 512 | 4× |
+| nbeats_num_stacks | 3 | 4 | 1.3× |
+| nbeats_num_blocks | 4 | 6 | 1.5× |
+| nbeats_num_layers | 4 | 6 | 1.5× |
+
+#### New Architecture Components
+
+**AttentionBlock** - Multi-head self-attention for feature weighting:
+```python
+class AttentionBlock(nn.Module):
+    def __init__(self, input_dim: int, num_heads: int = 8, dropout: float = 0.1):
+        super().__init__()
+        self.attention = nn.MultiheadAttention(
+            embed_dim=input_dim, num_heads=num_heads,
+            dropout=dropout, batch_first=True)
+        self.norm = nn.LayerNorm(input_dim)
+```
+
+**Gradient Accumulation** - Effective batch size = 2048 × 4 = 8192:
+```python
+self.accumulation_steps = 4
+scaled_loss = loss / self.accumulation_steps
+scaled_loss.backward()
+if (batch_idx + 1) % self.accumulation_steps == 0:
+    self.optimizer.step()
+    self.optimizer.zero_grad()
+```
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `data/preprocessing.py` | Added `add_technical_indicators()` function |
+| `data/dataset.py` | Expanded to 14-channel features, 6-dim complexity |
+| `config/config.py` | Scaled all dimensions |
+| `config/default_config.yaml` | Updated defaults |
+| `models/nbeats.py` | Added AttentionBlock, scaled architecture |
+| `training/trainer.py` | Added gradient accumulation |
+
+### Expected Improvements
+
+| Metric | Before Enhancement | After Enhancement | Change |
+|--------|-------------------|-------------------|--------|
+| GPU Memory | 4 MiB | ~40 GB | Full utilization |
+| Parameters | ~1.4M | ~50-80M | 50× increase |
+| Training Time | ~5 min | 1-2 hours | Proper convergence |
+| Feature Channels | 4 | 14 | 3.5× |
+| Complexity Dims | 1 | 6 | 6× |
+
+### Implementation Status (2026-01-04)
+
+- [x] Add technical indicators to preprocessing.py
+- [x] Expand dataset.py with Volume (5) + Technical Indicators (5)
+- [x] Expand complexity from 1 to 6 dimensions
+- [x] Scale config.py parameters
+- [x] Update N-BEATS architecture with AttentionBlock
+- [x] Add gradient accumulation to trainer.py
+- [x] Update documentation
+- [ ] Train enhanced model and evaluate (pending TDA extraction)
+
+### TDA Extraction Progress
+
+TDA features are computed once and cached. Current extraction (with window_size=672):
+- Train: 47,712 samples - Complete
+- Validation: 11,425 samples - Complete
+- Test: 7,969 samples - Complete
+
+---
+
+## Test Set Prediction Visualization
+
+### Overview
+
+Visualization of model predictions on the test set (Sep 30 - Dec 29, 2025) with weekly segmented charts.
+
+### Running Visualization
+
+```bash
+cd src/tda_model
+conda run -n passive_income python -m scripts.visualize_predictions
+
+# With custom threshold
+conda run -n passive_income python -m scripts.visualize_predictions --threshold 0.6
+```
+
+### Output Location
+
+```
+src/tda_model/visualizations/
+├── week_01_2025-09-30_to_2025-10-06.png
+├── week_02_2025-10-07_to_2025-10-13.png
+├── ...
+├── week_13_2025-12-23_to_2025-12-29.png
+└── summary_full_test_set.png
+```
+
+### Chart Layout (4 Subplots per Week)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. PRICE CHART WITH PREDICTIONS                             │
+│    - Bitcoin close price (black line)                       │
+│    - True Positives: Green ▲ (correct trigger predictions)  │
+│    - False Positives: Red ▲ (false alarms)                  │
+│    - False Negatives: Orange ▼ (missed triggers)            │
+│    - True Negatives: Not shown (too many)                   │
+├─────────────────────────────────────────────────────────────┤
+│ 2. TRIGGER PROBABILITY TIMELINE                             │
+│    - Model probability output (blue line, 0-1 scale)        │
+│    - Threshold line (red dashed, default 0.5)               │
+│    - Actual trigger events (green dots on x-axis)           │
+├─────────────────────────────────────────────────────────────┤
+│ 3. MAX_PCT COMPARISON (Regression)                          │
+│    - Predicted Max_Pct (blue dots)                          │
+│    - Actual Max_Pct (green dots)                            │
+│    - Only shown where Trigger=True                          │
+├─────────────────────────────────────────────────────────────┤
+│ 4. WEEKLY CONFUSION SUMMARY                                 │
+│    - Bar chart: TP, FP, FN, TN counts                       │
+│    - Precision, Recall, F1 text annotation                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Color Scheme
+
+| Element | Color | Marker |
+|---------|-------|--------|
+| Bitcoin Price | Black (#1a1a1a) | Line |
+| True Positive (TP) | Green (#2ECC71) | Triangle up ▲ |
+| False Positive (FP) | Red (#E74C3C) | Triangle up ▲ |
+| False Negative (FN) | Orange (#F39C12) | Triangle down ▼ |
+| Probability | Blue (#3498DB) | Line |
+| Threshold | Red | Dashed line |
+| Predicted Max_Pct | Blue | Scatter × |
+| Actual Max_Pct | Green | Scatter ● |
+
+### Interpretation Guide
+
+- **Green triangles (TP)**: Model correctly predicted trigger - potential profit opportunity
+- **Red triangles (FP)**: False alarm - would cause unnecessary trade (loss)
+- **Orange triangles (FN)**: Missed opportunity - acceptable in trading context
+- **Probability > threshold**: Model predicts trigger will occur
+
+### Trading Context
+
+In trading, **precision > recall** because:
+- False Positive (FP): Predict trigger when none occurs → unnecessary trade → actual loss
+- False Negative (FN): Miss a real trigger → missed opportunity → no loss
+
+Target metrics:
+- Precision: 60-70% (acceptable false positive rate: 30-40%)
+- Recall: 40-50% (catch half of real triggers)

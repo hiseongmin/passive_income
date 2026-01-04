@@ -311,19 +311,19 @@ def calculate_complexity_score(
     Returns:
         Tuple of (DataFrame with all indicators, Series with complexity score)
     """
-    # Default equal weights (6 indicators)
+    # Default equal weights (3 indicators - MA_sep, BB_width, efficiency removed)
     if weights is None:
-        w = 1.0 / 6.0  # ~0.167
+        w = 1.0 / 3.0  # ~0.333
         weights = {
-            "ma_separation": w,
-            "bb_width": w,
-            "price_efficiency": w,
+            "ma_separation": 0,       # Disabled
+            "bb_width": 0,            # Disabled
+            "price_efficiency": 0,    # Disabled
             "support_reaction": w,
             "directional_result": w,
             "volume_alignment": w,
         }
 
-    # Calculate individual indicators
+    # Calculate individual indicators (all calculated for reference)
     indicators = pd.DataFrame(index=df.index)
 
     indicators["ma_separation"] = calculate_ma_separation(df, ma_periods)
@@ -333,12 +333,9 @@ def calculate_complexity_score(
     indicators["directional_result"] = calculate_directional_result(df, directional_window)
     indicators["volume_alignment"] = calculate_volume_price_alignment(df, volume_window)
 
-    # Calculate complexity score (inverted indicators)
+    # Calculate complexity score (only 3 active indicators)
     complexity = (
-        weights["ma_separation"] * (1 - indicators["ma_separation"])
-        + weights["bb_width"] * (1 - indicators["bb_width"])
-        + weights["price_efficiency"] * (1 - indicators["price_efficiency"])
-        + weights["support_reaction"] * (1 - indicators["support_reaction"])
+        weights["support_reaction"] * (1 - indicators["support_reaction"])
         + weights["directional_result"] * (1 - indicators["directional_result"])
         + weights["volume_alignment"] * (1 - indicators["volume_alignment"])
     )

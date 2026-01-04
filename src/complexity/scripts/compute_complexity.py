@@ -2,13 +2,14 @@
 """
 Complexity Pipeline Script
 
-Computes market complexity on 1-minute data and resamples to 15-minute
+Computes market complexity using 1-minute granular data within 15-minute intervals
 for integration with the TDA model.
 
 Pipeline:
 1. Load 1-minute OHLCV data
-2. Compute complexity using 6 indicators
-3. Resample to 15-minute using mean()
+2. Group into 15-minute intervals
+3. Compute complexity on each 15-minute window using all 1-minute candles
+   (preserves fine-grained patterns vs. averaging individual 1-min scores)
 4. Merge with data_flagged/ files
 5. Save updated files
 
@@ -81,36 +82,43 @@ def load_1m_data(file_path: Path) -> pd.DataFrame:
     return df
 
 
-def compute_complexity_1m(df: pd.DataFrame) -> pd.Series:
-    """Compute complexity on 1-minute data."""
-    logger.info("Computing complexity on 1-minute data...")
+def compute_complexity_15m(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute complexity for each 15-minute interval using all 1-minute data within that interval.
 
-    # Set index for time-based operations
-    df_indexed = df.set_index("open_time")
+    This preserves fine-grained patterns by calculating complexity on the full 15-minute window
+    rather than averaging individual 1-minute complexity scores.
+    """
+    logger.info("Computing complexity on 15-minute intervals (using 1-minute granularity)...")
 
-    # Calculate complexity using default parameters (optimized for 1-min)
-    indicators, complexity = calculate_complexity_score(df_indexed)
+    # Create 15-minute time groups
+    df = df.copy()
+    df['time_group'] = df['open_time'].dt.floor('15min')
+
+    complexity_results = []
+    total_groups = df['time_group'].nunique()
+
+    for i, (timestamp, group) in enumerate(df.groupby('time_group'), 1):
+        if i % 100 == 0:
+            logger.info(f"  Processing group {i}/{total_groups}...")
+
+        # Calculate complexity on the entire 15-minute window (15 x 1-minute candles)
+        group_indexed = group.set_index('open_time')
+        indicators, complexity_score = calculate_complexity_score(group_indexed)
+
+        # Use the mean complexity across the 15-minute window
+        # (could also use .iloc[-1] for the final value)
+        complexity_results.append({
+            'open_time': timestamp,
+            'complexity': complexity_score.mean() if not complexity_score.isna().all() else 0.5
+        })
+
+    df_complexity = pd.DataFrame(complexity_results)
 
     # Log statistics
-    logger.info(f"  Complexity stats: min={complexity.min():.3f}, max={complexity.max():.3f}, mean={complexity.mean():.3f}")
-    logger.info(f"  NaN count: {complexity.isna().sum()}")
-
-    return complexity
-
-
-def resample_to_15m(complexity_1m: pd.Series) -> pd.DataFrame:
-    """Resample 1-minute complexity to 15-minute using mean."""
-    logger.info("Resampling to 15-minute intervals (using mean)...")
-
-    # Resample using mean aggregation
-    complexity_15m = complexity_1m.resample("15min").mean()
-
-    # Convert to DataFrame for merging
-    df_complexity = complexity_15m.reset_index()
-    df_complexity.columns = ["open_time", "complexity"]
-
-    logger.info(f"  Resampled to {len(df_complexity):,} rows")
+    logger.info(f"  Computed {len(df_complexity):,} 15-minute intervals")
     logger.info(f"  Complexity stats: min={df_complexity['complexity'].min():.3f}, max={df_complexity['complexity'].max():.3f}, mean={df_complexity['complexity'].mean():.3f}")
+    logger.info(f"  NaN count: {df_complexity['complexity'].isna().sum()}")
 
     return df_complexity
 
@@ -170,13 +178,10 @@ def process_file_pair(
         # Step 1: Load 1-min data
         df_1m = load_1m_data(data_1m_path)
 
-        # Step 2: Compute complexity
-        complexity_1m = compute_complexity_1m(df_1m)
+        # Step 2: Compute complexity on 15-min intervals using all 1-min data
+        complexity_15m = compute_complexity_15m(df_1m)
 
-        # Step 3: Resample to 15-min
-        complexity_15m = resample_to_15m(complexity_1m)
-
-        # Step 4: Merge with flagged data
+        # Step 3: Merge with flagged data
         merge_with_flagged(
             flagged_15m_path,
             complexity_15m,
@@ -186,7 +191,7 @@ def process_file_pair(
         return True
 
     except Exception as e:
-        logger.error(f"Failed to process: {e}")
+        logger.error(f"Failed to process: {e}", exc_info=True)
         return False
 
 
