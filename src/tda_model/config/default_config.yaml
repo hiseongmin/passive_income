@@ -1,0 +1,89 @@
+# TDA Model Configuration (SCALED for full GPU utilization)
+# All tunable hyperparameters for the multi-task N-BEATS/LSTM model
+# RTX A6000: 48GB VRAM available
+
+# TDA Parameters (optimized for weekly patterns)
+tda:
+  window_size: 672         # Segment length (672 = 7 days at 15-min, captures weekly patterns)
+  embedding_dim: 2         # Takens embedding dimension (k=2 best per enhance.pdf)
+  time_delay: 12           # Embedding delay (12 = 3 hours at 15-min)
+  betti_bins: 100          # Betti curve resolution (higher for better feature resolution)
+  landscape_layers: 5      # Persistence landscape layers (more detail)
+  homology_dimensions:     # Homology dimensions to compute
+    - 0
+    - 1
+  stride: 4                # Sliding window stride
+
+# Model Parameters (SCALED for full GPU utilization)
+model:
+  model_type: "nbeats"     # Model type: "lstm" or "nbeats" (N-BEATS recommended)
+  lstm_hidden_size: 1024   # Was 128 (8× increase for GPU utilization)
+  lstm_num_layers: 2       # Number of LSTM layers
+  lstm_dropout: 0.3        # Reduced dropout for larger model
+  use_attention: true      # Self-attention enabled
+  attention_heads: 8       # Was 4 (2× for larger model)
+  tda_encoder_dim: 256     # Was 64 (4× increase)
+  complexity_encoder_dim: 64  # Was 16 (4× increase)
+  shared_fc_dim: 512       # Was 128 (4× increase)
+  ohlcv_sequence_length: 96   # OHLCV sequence length (96 = 24 hours at 15-min)
+  # Feature dimensions
+  ohlcv_features: 4        # OHLC (base price features)
+  volume_features: 5       # volume, buy_volume, sell_volume, volume_delta, cvd
+  technical_features: 5    # RSI, MACD, BB_pctB, ATR, MOM
+  complexity_features: 6   # All 6 complexity indicators (expanded from 1)
+  # N-BEATS specific parameters (scaled for larger model)
+  nbeats_num_stacks: 4     # Was 3 (1.3× increase)
+  nbeats_num_blocks: 6     # Was 4 (1.5× increase)
+  nbeats_num_layers: 6     # Was 4 (1.5× increase)
+
+# Training Parameters (SCALED for longer training)
+training:
+  batch_size: 2048         # Was 256 (8× for GPU memory utilization)
+  learning_rate: 0.0001    # Further reduced to prevent NaN (was 0.0005)
+  weight_decay: 0.01       # Increased for regularization
+  trigger_loss_weight: 3.0 # Classification loss weight
+  max_pct_loss_weight: 0.3 # Regression loss weight
+  focal_alpha: 0.75        # Focal loss alpha
+  focal_gamma: 2.0         # Focal loss gamma
+  use_weighted_sampler: true
+  inference_threshold: 0.6
+  epochs: 500              # Was 100 (5× for proper convergence)
+  early_stopping_patience: 30  # Was 10 (3× for larger model)
+  gradient_clip: 1.0
+  scheduler_factor: 0.5
+  scheduler_patience: 10   # Was 5 (2× patience)
+  gradient_accumulation_steps: 4  # Effective batch = 2048 * 4 = 8192
+
+# Data Parameters
+data:
+  data_dir: "data"
+  cache_dir: "cache"
+  train_file: "BTCUSDT_spot_etf_to_90d_ago_15m_flagged.csv"
+  test_file: "BTCUSDT_spot_last_90d_15m_flagged.csv"
+  validation_split: 0.15
+  use_perp_data: false
+  complexity_placeholder: 0.5
+  # Stratified split (fixes distribution shift between train/val)
+  use_stratified_split: true
+  stratified_n_blocks: 10
+
+# GPU Configuration (NVIDIA RTX A6000 - 48GB VRAM)
+gpu:
+  device: "cuda:0"
+  mixed_precision: false     # Disabled: causes NaN with gradient accumulation
+  compile_model: false       # Disabled: causes dtype mismatch with BatchNorm + AMP
+  cudnn_benchmark: true
+
+# DataLoader Configuration
+dataloader:
+  num_workers: 8
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 4
+
+# Logging
+logging:
+  log_dir: "logs"
+  save_dir: "models/tda_model"
+  log_interval: 100
+  save_best_only: true

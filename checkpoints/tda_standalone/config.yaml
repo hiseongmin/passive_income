@@ -1,0 +1,37 @@
+data:
+  tda_cache_dir: cache
+  test_labels_path: data/BTCUSDT_spot_last_90d_15m_flagged.csv
+  train_labels_path: data/BTCUSDT_spot_etf_to_90d_ago_15m_flagged.csv
+device: cuda
+experiment_name: tda_standalone_v1
+log_dir: logs/tda_standalone
+model:
+  cyclical_embed_dim: 32
+  cyclical_hidden: 64
+  dropout: 0.2
+  landscape_dropout: 0.3
+  landscape_embed_dim: 24
+  landscape_hidden: 48
+  num_regimes: 4
+  regime_embed_dim: 16
+  regime_hidden: 16
+  structural_embed_dim: 32
+  structural_hidden: 64
+  trigger_hidden: 32
+preprocessing:
+  betti_bins_to_keep: 20
+  landscape_clip_range:
+  - -50.0
+  - 50.0
+  landscape_pca_dims: 20
+  remove_entropy_h0: true
+seed: 42
+training:
+  batch_size: 256
+  early_stopping_patience: 15
+  entropy_reg_weight: 0.1
+  epochs: 100
+  learning_rate: 0.001
+  regime_weight: 0.3
+  trigger_weight: 1.0
+  weight_decay: 0.01

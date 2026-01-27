@@ -1,0 +1,96 @@
+# TDA Standalone Model Configuration
+# ===================================
+# Self-contained model using only TDA features from cache
+# with specialized encoders for each feature type.
+
+# Preprocessing configuration
+preprocessing:
+  # Betti curve bins to keep (0-19 are informative, 20-49 are noise)
+  betti_bins_to_keep: 20
+
+  # Landscape feature preprocessing
+  landscape_clip_range: [-50.0, 50.0]  # Clip extreme outliers
+  landscape_pca_dims: 20  # Reduce 110 dims to 20 via PCA
+
+  # Remove constant Entropy H0 (index 100)
+  remove_entropy_h0: true
+
+# Model architecture configuration
+model:
+  # Encoder hidden dimensions
+  structural_hidden: 64  # For H0-based features
+  cyclical_hidden: 64    # For H1-based features
+  landscape_hidden: 48   # For landscape features (noisier)
+
+  # Encoder output dimensions (embeddings)
+  structural_embed_dim: 32
+  cyclical_embed_dim: 32
+  landscape_embed_dim: 24
+
+  # Regime classifier
+  num_regimes: 4  # Simple, Chaotic, Cycling, Complex
+  regime_hidden: 16
+  regime_embed_dim: 16
+
+  # Trigger head
+  trigger_hidden: 32
+
+  # Regularization
+  dropout: 0.2
+  landscape_dropout: 0.3  # Higher for noisy landscape features
+
+# Training configuration
+training:
+  # Optimization
+  batch_size: 256
+  learning_rate: 0.001
+  weight_decay: 0.01
+  epochs: 100
+
+  # Early stopping
+  early_stopping_patience: 15
+  min_delta: 0.0001
+
+  # Loss weights (multi-task learning)
+  trigger_weight: 1.0    # Primary task
+  regime_weight: 0.3     # Auxiliary self-supervised task
+  entropy_reg_weight: 0.1  # Encourage confident regime predictions
+
+  # Learning rate scheduler (ReduceLROnPlateau)
+  lr_scheduler: "reduce_on_plateau"
+  lr_patience: 5
+  lr_factor: 0.5
+
+  # Validation frequency
+  val_frequency: 1
+
+  # Checkpointing
+  save_best_only: true
+  checkpoint_dir: "checkpoints/tda_standalone"
+
+# Data configuration
+data:
+  # TDA feature cache
+  tda_cache_dir: "cache"
+  tda_train_file: "tda_features_train.npy"
+  tda_val_file: "tda_features_val.npy"
+  tda_test_file: "tda_features_test.npy"
+
+  # Labels
+  train_labels_path: "data/BTCUSDT_spot_etf_to_90d_ago_15m_flagged.csv"
+  test_labels_path: "data/BTCUSDT_spot_last_90d_15m_flagged.csv"
+
+  # Data split parameters (must match TDA computation)
+  window_size: 672  # 7 days of 15-min candles
+  seq_len: 96       # 24 hours
+  validation_split: 0.15
+
+# Device
+device: "cuda"
+
+# Random seed for reproducibility
+seed: 42
+
+# Logging
+log_dir: "logs/tda_standalone"
+experiment_name: "tda_standalone_v1"

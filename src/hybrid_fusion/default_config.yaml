@@ -1,0 +1,180 @@
+# =============================================================================
+# Hybrid Fusion Model - Complete Configuration
+# =============================================================================
+# This file contains ALL hyperparameters for the self-contained Hybrid Fusion model.
+#
+# Usage:
+#   python -m src.hybrid_fusion.scripts.train --config src/hybrid_fusion/default_config.yaml
+#
+# Architecture Overview:
+#   Raw Inputs → Encoders → Hybrid Fusion → Task Heads → Outputs
+#
+#   Encoders:
+#     - N-BEATS: OHLCV sequences (B, 96, 14) → (B, 256)
+#     - TDA: TDA features (B, 214) → (B, 256)
+#     - Complexity: 6 indicators (B, 6) → (B, 64)
+#
+#   Hybrid Fusion (6 stages):
+#     1. Feature Projection
+#     2. Regime Encoding (from complexity)
+#     3. FiLM Conditioning
+#     4. Cross-Modal Attention
+#     5. Multi-Path Aggregation
+#     6. Gated Fusion
+#
+#   Task Heads:
+#     - Trigger classification (binary)
+#     - Max percentage regression
+# =============================================================================
+
+# =============================================================================
+# N-BEATS Encoder Configuration
+# =============================================================================
+nbeats:
+  # Input dimensions
+  input_dim: 14                    # OHLCV features per timestep
+  seq_length: 96                   # Sequence length (candles)
+
+  # Stack configuration
+  num_stacks: 4                    # Number of stacks
+  stack_types:                     # Stack types
+    - trend
+    - seasonality
+    - generic
+    - generic
+
+  # Block configuration
+  num_blocks_per_stack: 3          # Blocks per stack
+  hidden_dim: 256                  # Hidden dimension in FC layers
+  theta_dim: 32                    # Polynomial degree for basis expansion
+
+  # Output
+  output_dim: 256                  # Encoder output dimension
+
+  # Regularization
+  dropout: 0.1
+
+  # Attention
+  use_attention: true
+  num_attention_heads: 4
+
+# =============================================================================
+# TDA Encoder Configuration
+# =============================================================================
+tda:
+  input_dim: 214                   # TDA feature dimension (from TDA pipeline)
+  hidden_dims:                     # MLP hidden layer dimensions
+    - 512
+    - 256
+  output_dim: 256                  # Encoder output dimension
+  dropout: 0.2
+  use_batch_norm: true
+
+# =============================================================================
+# Complexity Encoder Configuration
+# =============================================================================
+complexity:
+  input_dim: 6                     # 6 complexity indicators
+  hidden_dim: 32                   # Hidden layer dimension
+  output_dim: 64                   # Encoder output dimension
+  dropout: 0.1
+
+# =============================================================================
+# Hybrid Fusion Configuration
+# =============================================================================
+fusion:
+  # Core dimensions
+  hidden_dim: 256                  # Main hidden dimension throughout fusion
+  regime_dim: 128                  # Regime encoding dimension for FiLM
+
+  # Attention configuration
+  num_heads: 4                     # Cross-modal attention heads
+
+  # Regularization
+  dropout: 0.3                     # Main dropout rate
+
+  # Monitoring
+  log_diagnostics_every: 100       # Log gate weights every N batches
+
+  # Entropy regularization (experimental)
+  # Set use_entropy_reg: true to encourage path diversity
+  use_entropy_reg: false
+  target_entropy: 1.0              # Higher = more uniform gates
+  entropy_weight: 0.01             # Weight of entropy loss
+
+# =============================================================================
+# Task Head Configuration
+# =============================================================================
+heads:
+  hidden_dim: 32                   # Hidden dimension in task heads
+  dropout: 0.3                     # Head dropout rate
+
+# =============================================================================
+# Training Configuration
+# =============================================================================
+training:
+  # Optimizer
+  learning_rate: 0.00005           # Initial learning rate (lowered)
+  weight_decay: 0.01               # L2 regularization
+  betas:
+    - 0.9
+    - 0.999
+
+  # Scheduler
+  scheduler_type: OneCycleLR       # Options: OneCycleLR, ReduceLROnPlateau
+  max_lr: 0.0001                   # Max LR for OneCycleLR (lowered from 0.0003)
+  pct_start: 0.1                   # Warmup fraction for OneCycleLR
+  scheduler_factor: 0.5            # LR reduction factor (ReduceLROnPlateau)
+  scheduler_patience: 5            # Patience before LR reduction
+
+  # Loss weights
+  trigger_loss_weight: 3.0         # Weight for classification loss
+  max_pct_loss_weight: 0.3         # Weight for regression loss
+  focal_alpha: 0.75                # Focal loss alpha (weight for positive/trigger class)
+  focal_gamma: 2.0                 # Focal loss gamma (focusing)
+
+  # Regularization
+  gradient_clip: 1.0               # Max gradient norm
+  gradient_accumulation_steps: 1   # Effective batch = batch_size * this
+
+  # Training loop
+  epochs: 200                      # Max training epochs
+  batch_size: 2048                 # Batch size
+  early_stopping_patience: 50      # Epochs without improvement
+
+  # Data loading
+  use_weighted_sampler: false      # Oversample minority class
+
+# =============================================================================
+# GPU Configuration
+# =============================================================================
+gpu:
+  device: cuda:0                   # GPU device
+  mixed_precision: true            # Use AMP for faster training
+  compile_model: false             # Use torch.compile (PyTorch 2.0+)
+  cudnn_benchmark: true            # Enable cuDNN autotuner
+  num_workers: 4                   # DataLoader workers
+  pin_memory: true                 # Pin memory for faster transfer
+  persistent_workers: true         # Keep workers alive
+  prefetch_factor: 2               # Batches to prefetch per worker
+
+# =============================================================================
+# Data Configuration
+# =============================================================================
+data:
+  data_dir: data_flagged           # Directory with training data
+  train_file: BTCUSDT_spot_etf_to_90d_ago_15m_flagged.csv
+  test_file: BTCUSDT_spot_last_90d_15m_flagged.csv
+  cache_dir: cache                  # TDA feature cache
+  validation_split: 0.15           # Validation set fraction
+  use_stratified_split: true       # Balance trigger rate in splits
+  stratified_n_blocks: 10          # Temporal blocks for stratification
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+logging:
+  save_dir: checkpoints/hybrid_fusion
+  log_dir: logs/hybrid_fusion
+  log_interval: 100                # Log every N batches
+  save_best_only: true             # Only save best model

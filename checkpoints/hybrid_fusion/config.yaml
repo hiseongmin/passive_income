@@ -1,0 +1,84 @@
+nbeats:
+  input_dim: 14
+  seq_length: 96
+  num_stacks: 4
+  stack_types:
+  - trend
+  - seasonality
+  - generic
+  - generic
+  num_blocks_per_stack: 3
+  hidden_dim: 256
+  theta_dim: 32
+  output_dim: 256
+  dropout: 0.1
+  use_attention: true
+  num_attention_heads: 4
+tda:
+  input_dim: 214
+  hidden_dims:
+  - 512
+  - 256
+  output_dim: 256
+  dropout: 0.2
+  use_batch_norm: true
+complexity:
+  input_dim: 6
+  hidden_dim: 32
+  output_dim: 64
+  dropout: 0.1
+fusion:
+  hidden_dim: 256
+  regime_dim: 128
+  num_heads: 4
+  dropout: 0.3
+  log_diagnostics_every: 100
+  use_entropy_reg: false
+  target_entropy: 1.0
+  entropy_weight: 0.01
+heads:
+  hidden_dim: 32
+  dropout: 0.3
+training:
+  learning_rate: 5.0e-05
+  weight_decay: 0.01
+  betas:
+  - 0.9
+  - 0.999
+  scheduler_type: OneCycleLR
+  max_lr: 0.0001
+  pct_start: 0.1
+  scheduler_factor: 0.5
+  scheduler_patience: 5
+  trigger_loss_weight: 3.0
+  max_pct_loss_weight: 0.3
+  focal_alpha: 0.75
+  focal_gamma: 2.0
+  gradient_clip: 1.0
+  gradient_accumulation_steps: 1
+  epochs: 200
+  batch_size: 2048
+  early_stopping_patience: 50
+  use_weighted_sampler: false
+gpu:
+  device: cuda:0
+  mixed_precision: true
+  compile_model: false
+  cudnn_benchmark: true
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 2
+data:
+  data_dir: data_flagged
+  train_file: BTCUSDT_spot_etf_to_90d_ago_15m_flagged.csv
+  test_file: BTCUSDT_spot_last_90d_15m_flagged.csv
+  cache_dir: cache
+  validation_split: 0.15
+  use_stratified_split: true
+  stratified_n_blocks: 10
+logging:
+  save_dir: checkpoints/hybrid_fusion
+  log_dir: logs/hybrid_fusion
+  log_interval: 100
+  save_best_only: true
